@@ -33,7 +33,8 @@ typedef enum {
 	COM_CHIBI     = 3,
 	COM_RS485     = 4,
 	COM_WIFI      = 5,
-	COM_ETHERNET  = 6
+	COM_ETHERNET  = 6,
+	COM_ONDEVICE  = 7
 } ComType;
 
 typedef enum {

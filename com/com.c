@@ -24,6 +24,7 @@
 #include "bricklib/com/none/none.h"
 #include "bricklib/com/usb/usb.h"
 #include "bricklib/com/spi/spi_stack/spi_stack_common.h"
+#include "bricklib/com/ondevice/ondevice.h"
 #include "config.h"
 
 #ifndef COM_EXTENSIONS
@@ -42,6 +43,7 @@ Com com_list[] = {
 	{COM_NONE, no_init, no_send, no_recv},
 	{COM_USB, usb_init, usb_send, usb_recv},
 	{COM_SPI_STACK, NULL, spi_stack_send, spi_stack_recv},
+	{COM_ONDEVICE,  ondevice_init,  ondevice_send,  ondevice_recv},
 	COM_EXTENSIONS
 };
 
