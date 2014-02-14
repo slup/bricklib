@@ -43,8 +43,8 @@ Com com_list[] = {
 	{COM_NONE, no_init, no_send, no_recv},
 	{COM_USB, usb_init, usb_send, usb_recv},
 	{COM_SPI_STACK, NULL, spi_stack_send, spi_stack_recv},
-	{COM_ONDEVICE,  ondevice_init,  ondevice_send,  ondevice_recv},
 	COM_EXTENSIONS
+	{COM_ONDEVICE,  ondevice_init,  ondevice_send,  ondevice_recv}
 };
 
 

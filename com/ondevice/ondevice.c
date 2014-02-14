@@ -21,32 +21,68 @@
 
 #include "ondevice.h"
 
+#include <stdio.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include <string.h>
 
 #include "config.h"
+
+#include "extensions/brickd.h"
+
+#include "bricklib/bricklet/bricklet_config.h"
+#include "bricklib/com/com.h"
+#include "bricklib/com/com_common.h"
 #include "bricklib/utility/led.h"
 #include "bricklib/utility/init.h"
-
 #include "bricklib/utility/util_definitions.h"
 
-#define BLINK_DELAY 40
-
-uint8_t toggle_led = 0;
+uint8_t counter = 0;
+uint16_t status = 0;
 
 uint16_t ondevice_send(const void *data, const uint16_t length, uint32_t *options) {
+	status += 20;
 	return length;
 }
 
 uint16_t ondevice_recv(void *data, const uint16_t length, uint32_t *options) {
-	/*led_blink(LED_EXT_BLUE_0, BLINK_DELAY);
-	led_blink(LED_EXT_BLUE_3, BLINK_DELAY);*/
+	status += 10;
 	return length;
 }
 
-bool ondevice_init(void) {
+void ondevice_init_extension(uint8_t extension) {
+	ondevice_init();
+}
+
+bool ondevice_init() {
+	/*xTaskCreate(ondevice_message_loop,
+				(signed char *)"ond_ml",
+				MESSAGE_LOOP_SIZE,
+				NULL,
+				1,
+				(xTaskHandle *)NULL);
+				*/
+
+	status = 5;
+
+	activate_lcd_backlight();
+
 	return true;
 }
+
+
+void ondevice_message_loop(void *parameters) {
+	MessageLoopParameter mlp;
+	mlp.buffer_size = ONDEVICE_MAX_DATA_LENGTH;
+	mlp.com_type    = COM_ONDEVICE;
+	mlp.return_func = ondevice_message_loop_return;
+	com_message_loop(&mlp);
+}
+
+void ondevice_message_loop_return(const char *data, const uint16_t length) {
+	com_route_message_from_pc(data, length, COM_ONDEVICE);
+}
+
 
 void send_to_bricklet(const char *data, const uint16_t length) {
 	com_route_message_from_pc(data, length, COM_ONDEVICE);
@@ -54,109 +90,114 @@ void send_to_bricklet(const char *data, const uint16_t length) {
 
 void ondevice_tick(const uint8_t tick_type) {
 
-	if (toggle_led == 0) {
-		toggle_led = 1;
-		led_off(LED_EXT_BLUE_0);
-		led_on(LED_EXT_BLUE_1);
-		led_on(LED_EXT_BLUE_2);
-		led_off(LED_EXT_BLUE_3);
-	} else {
-		toggle_led = 0;
-		led_on(LED_EXT_BLUE_0);
-		led_off(LED_EXT_BLUE_1);
-		led_off(LED_EXT_BLUE_2);
-		led_on(LED_EXT_BLUE_3);
-	}
+	counter++;
 
-	activate_lcd_backlight();
+	send_get_baro_chip_temp();
 
-	send_text_to_lcd();
+	char info[] = "xxx yyy";
+	sprintf(&info[0], "%3d", counter);
+	sprintf(&info[3], "%3d", status);
+
+
+	send_text_to_lcd(0, 0, info);
 
 	SLEEP_MS(500);
 
 }
 
 void activate_lcd_backlight() {
-	/*
-	 * UID: gLt -> 53039 ->
-	 */
-	char data[8];
 
-	/* set UID (4 byte)*/
-	data[0] = 0x2f;
-	data[1] = 0xcf;
-	data[2] = 0x0;
-	data[3] = 0x0;
+	static MessageHeader lcdblStruct;
 
-	/* set length (1 byte)*/
-	data[4] = 0x08;
+	lcdblStruct.uid = base58_decode("gLt");
+	lcdblStruct.length = 8;
+	lcdblStruct.fid = 3;
+	lcdblStruct.sequence_num = 1;
+	lcdblStruct.return_expected = 0;
+	lcdblStruct.authentication = 0;
+	lcdblStruct.other_options = 0;
+	lcdblStruct.error = 0;
+	lcdblStruct.future_use = 0;
 
-	/* set function id (1 byte)*/
-	/* BrickletLCD20x4.write_line = 1 */
-	data[5] = 0x03;
-
-	/* set sequence number & options (1 byte)*/
-	data[6] = 0x10;
-
-	/* set flags (1 byte)*/
-	data[7] = 0x0;
-
-	send_to_bricklet(data, 8);
-
+	send_to_bricklet((char*)&lcdblStruct, lcdblStruct.length);
 }
 
-void send_text_to_lcd() {
-	/*
-	 * UID: gLt -> 53039 ->
-	 */
-	char data[30];
+void send_text_to_lcd(uint8_t line, uint8_t pos, char * text) {
 
-	/* set UID (4 byte)*/
-	data[0] = 0x2f;
-	data[1] = 0xcf;
-	data[2] = 0x0;
-	data[3] = 0x0;
+	static WriteLine lineStruct;
 
-	/* set length (1 byte)*/
-	data[4] = 0x1e;
+	lineStruct.header.uid = base58_decode("gLt");
+	lineStruct.header.length = 30;
+	lineStruct.header.fid = 1;
+	lineStruct.header.sequence_num = 1;
+	lineStruct.header.return_expected = 0;
+	lineStruct.header.authentication = 0;
+	lineStruct.header.other_options = 0;
+	lineStruct.header.error = 0;
+	lineStruct.header.future_use = 0;
 
-	/* set function id (1 byte)*/
-	/* BrickletLCD20x4.write_line = 1 */
-	data[5] = 0x01;
+	lineStruct.line = line;
+	lineStruct.position = pos;
+	strncpy(lineStruct.text, text, 20);
 
-	/* set sequence number & options (1 byte)*/
-	data[6] = 0x10;
+	send_to_bricklet((char*)&lineStruct, lineStruct.header.length);
+}
 
-	/* set flags (1 byte)*/
-	data[7] = 0x0;
+void send_get_baro_chip_temp() {
 
-	/* set line (1 byte) */
-	data[8] = 0x0;
+	static MessageHeader baroStruct;
 
-	/* set pos (1 byte) */
-	data[9] = 0x0;
+	baroStruct.uid = base58_decode("g2j");
+	baroStruct.length = 8;
+	baroStruct.fid = 14;
+	baroStruct.sequence_num = 1;
+	baroStruct.return_expected = 1;
+	baroStruct.authentication = 0;
+	baroStruct.other_options = 0;
+	baroStruct.error = 0;
+	baroStruct.future_use = 0;
 
-	/* set text (20 byte) */
-	data[10] = 0x48; /*H*/
-	data[11] = 0x65; /*e*/
-	data[12] = 0x6c; /*l*/
-	data[13] = 0x6c; /*l*/
-	data[14] = 0x6f; /*o*/
-	data[15] = 0x3a; /*:*/
-	data[16] = 0x20; /* */
-	data[17] = 48 + toggle_led;
-	data[18] = 0x0;
-	data[19] = 0x0;
-	data[20] = 0x0;
-	data[21] = 0x0;
-	data[22] = 0x0;
-	data[23] = 0x0;
-	data[24] = 0x0;
-	data[25] = 0x0;
-	data[26] = 0x0;
-	data[27] = 0x0;
-	data[28] = 0x0;
-	data[29] = 0x0;
+	send_to_bricklet((char*)&baroStruct, baroStruct.length);
+}
 
-	send_to_bricklet(data, 30);
+/*
+ *
+ * BASE58 ############################
+ *
+ */
+
+#define BASE58_MAX_STR_SIZE 13
+
+static const char BASE58_ALPHABET[] = "123456789abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ";
+
+uint32_t base58_decode(const char *str) {
+	int i;
+	int k;
+	uint32_t value = 0;
+	uint32_t base = 1;
+
+	for (i = 0; i < BASE58_MAX_STR_SIZE; i++) {
+		if (str[i] == '\0') {
+			break;
+		}
+	}
+
+	--i;
+
+	for (; i >= 0; i--) {
+		if (str[i] == '\0') {
+			continue;
+		}
+
+		for (k = 0; k < 58; k++) {
+			if (BASE58_ALPHABET[k] == str[i]) {
+				break;
+			}
+		}
+
+		value += k * base;
+		base *= 58;
+	}
+
+	return value;
 }
